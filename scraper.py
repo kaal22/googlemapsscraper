@@ -125,11 +125,33 @@ def extract_emails_from_website(context, website_url: str, config=None) -> str:
         re.IGNORECASE
     )
 
+    # Add common social media & directory domains to skip scanning entirely
+    skip_domains = {
+        'facebook.com', 'instagram.com', 'twitter.com', 'x.com', 'linkedin.com',
+        'yelp.com', 'tripadvisor.com', 'foursquare.com', 'pinterest.com',
+        'tiktok.com', 'youtube.com'
+    }
+
+    # Extract base domain from url
+    try:
+        from urllib.parse import urlparse
+        base_domain = urlparse(url).netloc.lower()
+        if base_domain.startswith('www.'):
+            base_domain = base_domain[4:]
+        if any(base_domain.endswith(d) for d in skip_domains):
+            return ''
+    except Exception:
+        pass
+
     excluded_domains = {
         'sentry.io', 'wixpress.com', 'example.com', 'email.com',
         'domain.com', 'company.com', 'yoursite.com', 'website.com',
         'test.com', 'sample.com', 'placeholder.com'
     }
+    
+    # Specific known bad emails
+    excluded_emails = {'dev7561@gmail.com'}
+    
     excluded_patterns = ('.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.css', '.js')
     email_timeout = config.get('email_timeout', DEFAULTS['email_timeout'])
 
@@ -150,6 +172,7 @@ def extract_emails_from_website(context, website_url: str, config=None) -> str:
                 email_lower = email.lower()
                 domain = email_lower.split('@')[1] if '@' in email_lower else ''
                 if (domain not in excluded_domains and
+                        email_lower not in excluded_emails and
                         not any(email_lower.endswith(p) for p in excluded_patterns)):
                     found_emails.add(email_lower)
 
@@ -158,7 +181,9 @@ def extract_emails_from_website(context, website_url: str, config=None) -> str:
                 href = link.get_attribute('href') or ''
                 email_match = email_pattern.search(href)
                 if email_match:
-                    found_emails.add(email_match.group().lower())
+                            email_str = email_match.group().lower()
+                            if email_str not in excluded_emails:
+                                found_emails.add(email_str)
 
             if not found_emails:
                 for path in contact_paths:
@@ -172,6 +197,7 @@ def extract_emails_from_website(context, website_url: str, config=None) -> str:
                             email_lower = email.lower()
                             domain = email_lower.split('@')[1] if '@' in email_lower else ''
                             if (domain not in excluded_domains and
+                                    email_lower not in excluded_emails and
                                     not any(email_lower.endswith(p) for p in excluded_patterns)):
                                 found_emails.add(email_lower)
 
@@ -180,7 +206,9 @@ def extract_emails_from_website(context, website_url: str, config=None) -> str:
                             href = link.get_attribute('href') or ''
                             email_match = email_pattern.search(href)
                             if email_match:
-                                found_emails.add(email_match.group().lower())
+                                email_str = email_match.group().lower()
+                                if email_str not in excluded_emails:
+                                    found_emails.add(email_str)
 
                         if found_emails:
                             break
