@@ -1,7 +1,7 @@
 # Google Maps Business Lead Scraper
 
 Scrape business leads from Google Maps and export to CSV.  
-Extracts: **Name**, **Website**, **Phone Number**, **Address**.
+Extracts: **Name**, **Website**, **Phone Number**, **Address**, **Email**.
 
 ## Quick Start
 
@@ -18,6 +18,7 @@ Enter a search query when prompted (e.g. `plumbers in Dallas TX`) and the tool w
 - Open Google Maps and search for your query
 - Scroll through all results to load every listing
 - Click into each business to extract details
+- Visit each business website to find email addresses
 - Save everything to a CSV file (e.g. `plumbers_in_dallas_tx.csv`)
 
 ## Configuration
@@ -30,11 +31,14 @@ Edit the top of `scraper.py` to tweak:
 | `SCROLL_PAUSE` | 2.0s | Wait time between scrolls |
 | `ACTION_DELAY` | 1.0–2.5s | Random delay between clicks (stealth) |
 | `TIMEOUT` | 8000ms | How long to wait for elements to appear |
+| `SCRAPE_EMAILS` | True | Visit business websites to find emails |
+| `EMAIL_TIMEOUT` | 10000ms | Timeout for loading business websites |
 
 ## Tips
 
 - **More results**: Increase `MAX_SCROLLS` to load more listings
 - **Faster scraping**: Decrease `ACTION_DELAY` (higher detection risk)
+- **Skip emails**: Set `SCRAPE_EMAILS = False` to skip website email scanning
 - **Background mode**: Set `headless=True` in `scraper.py` (line in `scrape_google_maps`)
 - **Specific areas**: Be specific in your query — e.g. `"dentists in downtown Chicago IL"`
 
@@ -43,6 +47,6 @@ Edit the top of `scraper.py` to tweak:
 CSV files are saved in the same folder as the script, named after your query:  
 `dentists_in_downtown_chicago_il.csv`
 
-| name | address | phone | website |
-|------|---------|-------|---------|
-| Example Dental | 123 Main St, Chicago, IL | (312) 555-0100 | exampledental.com |
+| name | address | phone | website | email |
+|------|---------|-------|---------|-------|
+| Example Dental | 123 Main St, Chicago, IL | (312) 555-0100 | exampledental.com | info@exampledental.com |

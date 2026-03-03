@@ -2,7 +2,7 @@
 Google Maps Business Lead Scraper
 =================================
 Scrapes business listings from Google Maps and exports to CSV.
-Extracts: Name, Website, Phone Number, Address.
+Extracts: Name, Website, Phone Number, Address, Email.
 
 Usage:
     python scraper.py
@@ -23,6 +23,8 @@ MAX_SCROLLS = 15            # Max scroll attempts to load more results
 SCROLL_PAUSE = 2.0          # Seconds to wait after each scroll
 ACTION_DELAY = (1.0, 2.5)   # Random delay range between actions (seconds)
 TIMEOUT = 8000               # Timeout for element waits (ms)
+SCRAPE_EMAILS = True         # Visit business websites to find email addresses
+EMAIL_TIMEOUT = 10000        # Timeout for loading business websites (ms)
 
 
 def random_delay():
@@ -89,16 +91,121 @@ def scroll_results(page) -> int:
     return current_count
 
 
+def extract_emails_from_website(context, website_url: str) -> str:
+    """
+    Visit a business website and scan for email addresses.
+    Checks the homepage and common contact pages.
+    Returns a comma-separated string of found emails, or empty string.
+    """
+    if not website_url:
+        return ''
+
+    # Build a proper URL
+    url = website_url.strip()
+    if not url.startswith('http'):
+        url = 'https://' + url
+
+    # Email regex — matches standard email patterns
+    email_pattern = re.compile(
+        r'[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}',
+        re.IGNORECASE
+    )
+
+    # Emails to exclude (common false positives)
+    excluded_domains = {
+        'sentry.io', 'wixpress.com', 'example.com', 'email.com',
+        'domain.com', 'company.com', 'yoursite.com', 'website.com',
+        'test.com', 'sample.com', 'placeholder.com'
+    }
+    excluded_patterns = ('.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.css', '.js')
+
+    found_emails = set()
+    page = None
+
+    try:
+        page = context.new_page()
+
+        # Pages to check: homepage + common contact pages
+        pages_to_check = [url]
+        contact_paths = ['/contact', '/contact-us', '/about', '/about-us']
+
+        # Load homepage first
+        try:
+            page.goto(url, wait_until='domcontentloaded', timeout=EMAIL_TIMEOUT)
+            time.sleep(1.5)
+
+            # Get page content and scan for emails
+            content = page.content()
+            emails = email_pattern.findall(content)
+            for email in emails:
+                email_lower = email.lower()
+                domain = email_lower.split('@')[1] if '@' in email_lower else ''
+                if (domain not in excluded_domains and
+                        not any(email_lower.endswith(p) for p in excluded_patterns)):
+                    found_emails.add(email_lower)
+
+            # Also check mailto: links
+            mailto_links = page.query_selector_all('a[href^="mailto:"]')
+            for link in mailto_links:
+                href = link.get_attribute('href') or ''
+                email_match = email_pattern.search(href)
+                if email_match:
+                    found_emails.add(email_match.group().lower())
+
+            # Look for contact page links on the homepage
+            if not found_emails:
+                for path in contact_paths:
+                    contact_url = url.rstrip('/') + path
+                    try:
+                        page.goto(contact_url, wait_until='domcontentloaded', timeout=EMAIL_TIMEOUT)
+                        time.sleep(1)
+                        content = page.content()
+                        emails = email_pattern.findall(content)
+                        for email in emails:
+                            email_lower = email.lower()
+                            domain = email_lower.split('@')[1] if '@' in email_lower else ''
+                            if (domain not in excluded_domains and
+                                    not any(email_lower.endswith(p) for p in excluded_patterns)):
+                                found_emails.add(email_lower)
+
+                        mailto_links = page.query_selector_all('a[href^="mailto:"]')
+                        for link in mailto_links:
+                            href = link.get_attribute('href') or ''
+                            email_match = email_pattern.search(href)
+                            if email_match:
+                                found_emails.add(email_match.group().lower())
+
+                        if found_emails:
+                            break  # Found emails, no need to check more pages
+                    except Exception:
+                        continue
+
+        except Exception:
+            pass
+
+    except Exception:
+        pass
+    finally:
+        if page:
+            try:
+                page.close()
+            except Exception:
+                pass
+
+    return ', '.join(sorted(found_emails))
+
+
 def extract_business_details(page) -> dict:
     """
     Extract business details from the currently open listing panel.
-    Returns a dict with name, address, phone, website.
+    Returns a dict with name, address, phone, website, email.
     """
     details = {
         'name': '',
         'address': '',
         'phone': '',
-        'website': ''
+        'website': '',
+        'email': ''
     }
 
     # ── Name ──
@@ -256,12 +363,29 @@ def scrape_google_maps(query: str) -> list[dict]:
                         print(f"           🌐 {details['website']}")
                     if details['address']:
                         print(f"           📍 {details['address']}")
+                    if details['email']:
+                        print(f"           📧 {details['email']}")
                 else:
                     print(f"  [{i+1}/{len(listing_links)}] ⚠ No name found — skipping")
 
             except Exception as e:
                 print(f"  [{i+1}/{len(listing_links)}] ✗ Error: {e}")
                 continue
+
+        # ── Phase 2: Scrape emails from business websites ──
+        if SCRAPE_EMAILS:
+            businesses_with_sites = [r for r in results if r.get('website')]
+            if businesses_with_sites:
+                print(f"\n  → Scanning {len(businesses_with_sites)} websites for email addresses...\n")
+                for i, biz in enumerate(businesses_with_sites):
+                    print(f"  [{i+1}/{len(businesses_with_sites)}] Checking {biz['website']}...", end=' ')
+                    email = extract_emails_from_website(context, biz['website'])
+                    biz['email'] = email
+                    if email:
+                        print(f"📧 {email}")
+                    else:
+                        print("no email found")
+                    random_delay()
 
         browser.close()
 
@@ -273,7 +397,7 @@ def save_to_csv(results: list[dict], filename: str):
     filepath = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
 
     with open(filepath, 'w', newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(f, fieldnames=['name', 'address', 'phone', 'website'])
+        writer = csv.DictWriter(f, fieldnames=['name', 'address', 'phone', 'website', 'email'])
         writer.writeheader()
         writer.writerows(results)
 
@@ -303,8 +427,10 @@ def main():
     filepath = save_to_csv(results, filename)
 
     # Summary
+    emails_found = sum(1 for r in results if r.get('email'))
     print("\n" + "=" * 60)
     print(f"  ✓ Done! Scraped {len(results)} businesses")
+    print(f"  📧 Emails found: {emails_found}/{len(results)}")
     print(f"  📄 Saved to: {filepath}")
     print("=" * 60)
 
