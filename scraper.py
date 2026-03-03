@@ -27,6 +27,7 @@ DEFAULTS = {
     'scrape_emails': True,
     'email_timeout': 10000,
     'headless': False,
+    'append_existing': False,
 }
 
 # Results folder
@@ -259,7 +260,7 @@ def extract_business_details(page) -> dict:
     return details
 
 
-def scrape_google_maps(query: str, config: dict = None, progress_callback=None) -> list[dict]:
+def scrape_google_maps(query: str, config: dict = None, progress_callback=None, existing_data: list[dict] = None) -> list[dict]:
     """
     Main scraping function.
     Searches Google Maps for the query, scrolls results,
@@ -269,12 +270,19 @@ def scrape_google_maps(query: str, config: dict = None, progress_callback=None) 
         query: Search query string
         config: Configuration dict (uses DEFAULTS if not provided)
         progress_callback: Optional callback fn(event_type, message) for live updates
+        existing_data: Optional list of dicts to seed the 'seen' set to prevent duplicates
     """
     if config is None:
         config = DEFAULTS.copy()
 
     results = []
     seen = set()
+    
+    if existing_data:
+        for row in existing_data:
+            if row.get('name') and row.get('address'):
+                seen.add((row['name'].lower(), row['address'].lower()))
+
     search_url = f"https://www.google.com/maps/search/{query.replace(' ', '+')}"
 
     def emit(event, msg):
@@ -402,13 +410,17 @@ def scrape_google_maps(query: str, config: dict = None, progress_callback=None) 
     return results
 
 
-def save_to_csv(results: list[dict], filename: str) -> str:
+def save_to_csv(results: list[dict], filename: str, append_existing: bool = False) -> str:
     """Save scraped results to a CSV file in the results/ folder."""
     filepath = os.path.join(RESULTS_DIR, filename)
 
-    with open(filepath, 'w', newline='', encoding='utf-8') as f:
+    file_exists = os.path.exists(filepath)
+    mode = 'a' if (append_existing and file_exists) else 'w'
+
+    with open(filepath, mode, newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=['name', 'address', 'phone', 'website', 'email'])
-        writer.writeheader()
+        if mode == 'w':
+            writer.writeheader()
         writer.writerows(results)
 
     return filepath

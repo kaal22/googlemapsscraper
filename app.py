@@ -47,19 +47,35 @@ class ScrapeJob:
             self.status = 'scraping'
             self.emit('status', 'Starting scrape...')
 
+            self.filename = sanitize_filename(self.query)
+            filepath = os.path.join(RESULTS_DIR, self.filename)
+            existing_data = []
+
+            if self.config.get('append_existing') and os.path.exists(filepath):
+                try:
+                    with open(filepath, 'r', encoding='utf-8') as f:
+                        reader = csv.DictReader(f)
+                        existing_data = list(reader)
+                        self.emit('status', f'Loaded {len(existing_data)} existing records to prevent duplicates.')
+                except Exception as e:
+                    self.emit('warning', f'Could not read existing file: {e}')
+
             self.results = scrape_google_maps(
                 self.query,
                 self.config,
-                progress_callback=self.emit
+                progress_callback=self.emit,
+                existing_data=existing_data
             )
 
-            if self.results:
-                self.filename = sanitize_filename(self.query)
-                filepath = save_to_csv(self.results, self.filename)
-                emails_found = sum(1 for r in self.results if r.get('email'))
+            if self.results or existing_data:
+                # Only write to CSV if there are new results, or if it's a completely new file
+                if self.results:
+                    filepath = save_to_csv(self.results, self.filename, append_existing=self.config.get('append_existing', False))
+                
+                new_emails = sum(1 for r in self.results if r.get('email'))
                 self.emit('complete', json.dumps({
                     'total': len(self.results),
-                    'emails': emails_found,
+                    'emails': new_emails,
                     'filename': self.filename,
                     'filepath': filepath,
                 }))
@@ -102,6 +118,7 @@ def start_scrape():
         'scrape_emails': data.get('scrape_emails', True),
         'email_timeout': int(data.get('email_timeout', DEFAULTS['email_timeout'])),
         'headless': data.get('headless', True),
+        'append_existing': data.get('append_existing', False),
     }
 
     # Create job

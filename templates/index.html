@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Google Maps Scraper</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
     <style>
         :root {
             --bg-primary: #0a0a0f;
@@ -277,11 +279,11 @@
             transition: 0.2s;
         }
 
-        .toggle input:checked + .toggle-slider {
+        .toggle input:checked+.toggle-slider {
             background: var(--accent);
         }
 
-        .toggle input:checked + .toggle-slider::before {
+        .toggle input:checked+.toggle-slider::before {
             transform: translateX(20px);
         }
 
@@ -357,7 +359,7 @@
         .btn-start .spinner {
             width: 18px;
             height: 18px;
-            border: 2px solid rgba(255,255,255,0.3);
+            border: 2px solid rgba(255, 255, 255, 0.3);
             border-top-color: white;
             border-radius: 50%;
             animation: spin 0.6s linear infinite;
@@ -454,10 +456,21 @@
             flex-shrink: 0;
         }
 
-        .progress-log .success { color: var(--green); }
-        .progress-log .warning { color: var(--orange); }
-        .progress-log .error   { color: var(--red); }
-        .progress-log .info    { color: var(--cyan); }
+        .progress-log .success {
+            color: var(--green);
+        }
+
+        .progress-log .warning {
+            color: var(--orange);
+        }
+
+        .progress-log .error {
+            color: var(--red);
+        }
+
+        .progress-log .info {
+            color: var(--cyan);
+        }
 
         /* ─── Results table ─── */
         .results-section {
@@ -635,17 +648,33 @@
 
         /* ─── Animations ─── */
         @keyframes spin {
-            to { transform: rotate(360deg); }
+            to {
+                transform: rotate(360deg);
+            }
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(8px); }
-            to   { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
         }
 
         .pulse {
@@ -663,15 +692,18 @@
         ::-webkit-scrollbar {
             width: 6px;
         }
+
         ::-webkit-scrollbar-track {
             background: transparent;
         }
+
         ::-webkit-scrollbar-thumb {
             background: var(--border);
             border-radius: 999px;
         }
     </style>
 </head>
+
 <body>
 
     <!-- Header -->
@@ -702,13 +734,23 @@
                         <!-- Search -->
                         <div class="form-group">
                             <label class="form-label">Search Query</label>
-                            <input type="text" id="query" class="search-input"
-                                   placeholder="e.g. plumbers in Dallas TX"
-                                   onkeydown="if(event.key==='Enter')startScrape()">
+                            <input type="text" id="query" class="search-input" placeholder="e.g. plumbers in Dallas TX"
+                                onkeydown="if(event.key==='Enter')startScrape()">
                             <div class="form-hint">Be specific — include business type + city + state</div>
                         </div>
 
                         <!-- Toggles -->
+                        <div class="toggle-row">
+                            <div>
+                                <div class="toggle-label">Append to existing</div>
+                                <div class="toggle-desc">Add new results to CSV if it already exists</div>
+                            </div>
+                            <label class="toggle">
+                                <input type="checkbox" id="append_existing" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+
                         <div class="toggle-row">
                             <div>
                                 <div class="toggle-label">Scrape emails</div>
@@ -740,32 +782,38 @@
                             <div class="config-grid">
                                 <div class="form-group">
                                     <label class="form-label">Max Scrolls</label>
-                                    <input type="number" id="max_scrolls" value="{{ defaults.max_scrolls }}" min="1" max="100">
+                                    <input type="number" id="max_scrolls" value="{{ defaults.max_scrolls }}" min="1"
+                                        max="100">
                                     <div class="form-hint">How many scroll rounds</div>
                                 </div>
                                 <div class="form-group">
                                     <label class="form-label">Scroll Pause (s)</label>
-                                    <input type="number" id="scroll_pause" value="{{ defaults.scroll_pause }}" min="0.5" max="10" step="0.5">
+                                    <input type="number" id="scroll_pause" value="{{ defaults.scroll_pause }}" min="0.5"
+                                        max="10" step="0.5">
                                     <div class="form-hint">Wait between scrolls</div>
                                 </div>
                                 <div class="form-group">
                                     <label class="form-label">Min Delay (s)</label>
-                                    <input type="number" id="action_delay_min" value="{{ defaults.action_delay_min }}" min="0.5" max="10" step="0.5">
+                                    <input type="number" id="action_delay_min" value="{{ defaults.action_delay_min }}"
+                                        min="0.5" max="10" step="0.5">
                                     <div class="form-hint">Minimum action delay</div>
                                 </div>
                                 <div class="form-group">
                                     <label class="form-label">Max Delay (s)</label>
-                                    <input type="number" id="action_delay_max" value="{{ defaults.action_delay_max }}" min="0.5" max="10" step="0.5">
+                                    <input type="number" id="action_delay_max" value="{{ defaults.action_delay_max }}"
+                                        min="0.5" max="10" step="0.5">
                                     <div class="form-hint">Maximum action delay</div>
                                 </div>
                                 <div class="form-group">
                                     <label class="form-label">Timeout (ms)</label>
-                                    <input type="number" id="timeout" value="{{ defaults.timeout }}" min="3000" max="30000" step="1000">
+                                    <input type="number" id="timeout" value="{{ defaults.timeout }}" min="3000"
+                                        max="30000" step="1000">
                                     <div class="form-hint">Element wait timeout</div>
                                 </div>
                                 <div class="form-group">
                                     <label class="form-label">Email Timeout (ms)</label>
-                                    <input type="number" id="email_timeout" value="{{ defaults.email_timeout }}" min="3000" max="30000" step="1000">
+                                    <input type="number" id="email_timeout" value="{{ defaults.email_timeout }}"
+                                        min="3000" max="30000" step="1000">
                                     <div class="form-hint">Website load timeout</div>
                                 </div>
                             </div>
@@ -788,7 +836,8 @@
                     <div class="empty-state">
                         <div class="icon">🗺️</div>
                         <h3>Ready to scrape</h3>
-                        <p>Enter a search query and hit Start to begin<br>extracting business leads from Google Maps.</p>
+                        <p>Enter a search query and hit Start to begin<br>extracting business leads from Google Maps.
+                        </p>
                     </div>
                 </div>
 
@@ -796,7 +845,8 @@
                 <div class="card progress-panel" id="progressPanel">
                     <div class="card-header">
                         <h2>⚡ Progress</h2>
-                        <span id="progressStatus" class="pulse" style="font-size:12px;color:var(--cyan);">Initializing...</span>
+                        <span id="progressStatus" class="pulse"
+                            style="font-size:12px;color:var(--cyan);">Initializing...</span>
                     </div>
                     <div class="card-body">
                         <div class="progress-bar-container">
@@ -823,9 +873,14 @@
                 <!-- Results table -->
                 <div class="card results-section" id="resultsSection">
                     <div class="card-header">
-                        <h2>📋 Results <span id="resultCount" style="color:var(--text-muted);font-weight:400;"></span></h2>
+                        <h2>📋 Results <span id="resultCount" style="color:var(--text-muted);font-weight:400;"></span>
+                        </h2>
                         <div class="results-actions">
-                            <a class="btn-sm green" id="downloadBtn" href="#" download>⬇ Download CSV</a>
+                            <span id="downloadPending"
+                                style="font-size: 11px; color: var(--text-muted); display: none; align-items: center; padding: 6px 14px;">CSV
+                                saves when finished...</span>
+                            <a class="btn-sm green" id="downloadBtn" href="#" download style="display: none;">⬇ Download
+                                CSV</a>
                         </div>
                     </div>
                     <div class="table-scroll">
@@ -918,6 +973,8 @@
             document.getElementById('resultsSection').classList.remove('active');
             document.getElementById('progressLog').innerHTML = '';
             document.getElementById('progressBar').style.width = '0%';
+            document.getElementById('downloadBtn').style.display = 'none';
+            document.getElementById('downloadPending').style.display = 'inline-flex';
             updateStats();
 
             // Build config
@@ -931,12 +988,13 @@
                 email_timeout: parseInt(document.getElementById('email_timeout').value),
                 scrape_emails: document.getElementById('scrape_emails').checked,
                 headless: document.getElementById('headless').checked,
+                append_existing: document.getElementById('append_existing').checked,
             };
 
             try {
                 const res = await fetch('/start', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(config),
                 });
                 const data = await res.json();
@@ -1037,6 +1095,8 @@
                     const result = JSON.parse(data);
                     currentFilename = result.filename;
                     document.getElementById('downloadBtn').href = `/download/${result.filename}`;
+                    document.getElementById('downloadBtn').style.display = 'inline-flex';
+                    document.getElementById('downloadPending').style.display = 'none';
                     document.getElementById('resultCount').textContent = `— ${result.total} leads`;
                     document.getElementById('progressBar').style.width = '100%';
                     addLog('success', `✅ Done! ${result.total} businesses, ${result.emails} emails`);
@@ -1161,6 +1221,8 @@
 
             document.getElementById('resultsSection').classList.add('active');
             document.getElementById('downloadBtn').href = `/download/${filename}`;
+            document.getElementById('downloadBtn').style.display = 'inline-flex';
+            document.getElementById('downloadPending').style.display = 'none';
             document.getElementById('resultCount').textContent = `— ${rows.length} leads — ${filename}`;
 
             const tbody = document.getElementById('resultsBody');
@@ -1182,4 +1244,5 @@
         }
     </script>
 </body>
+
 </html>
