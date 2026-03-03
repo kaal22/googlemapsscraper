@@ -1,5 +1,6 @@
 # Ignore CSV output files
 *.csv
+results/
 
 # Python
 __pycache__/

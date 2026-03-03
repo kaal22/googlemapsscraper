@@ -4,9 +4,7 @@ Google Maps Business Lead Scraper
 Scrapes business listings from Google Maps and exports to CSV.
 Extracts: Name, Website, Phone Number, Address, Email.
 
-Usage:
-    python scraper.py
-    → Enter a search query when prompted (e.g. "plumbers in Dallas TX")
+Can be used standalone (python scraper.py) or imported by the web UI.
 """
 
 import csv
@@ -14,22 +12,31 @@ import os
 import re
 import time
 import random
+import json
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
 
 
-# ─── Configuration ───────────────────────────────────────────────────────────
+# ─── Default Configuration ──────────────────────────────────────────────────
 
-MAX_SCROLLS = 15            # Max scroll attempts to load more results
-SCROLL_PAUSE = 2.0          # Seconds to wait after each scroll
-ACTION_DELAY = (1.0, 2.5)   # Random delay range between actions (seconds)
-TIMEOUT = 8000               # Timeout for element waits (ms)
-SCRAPE_EMAILS = True         # Visit business websites to find email addresses
-EMAIL_TIMEOUT = 10000        # Timeout for loading business websites (ms)
+DEFAULTS = {
+    'max_scrolls': 15,
+    'scroll_pause': 2.0,
+    'action_delay_min': 1.0,
+    'action_delay_max': 2.5,
+    'timeout': 8000,
+    'scrape_emails': True,
+    'email_timeout': 10000,
+    'headless': False,
+}
+
+# Results folder
+RESULTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'results')
+os.makedirs(RESULTS_DIR, exist_ok=True)
 
 
-def random_delay():
+def random_delay(delay_min=1.0, delay_max=2.5):
     """Sleep for a random duration to mimic human behavior."""
-    time.sleep(random.uniform(*ACTION_DELAY))
+    time.sleep(random.uniform(delay_min, delay_max))
 
 
 def sanitize_filename(query: str) -> str:
@@ -40,58 +47,63 @@ def sanitize_filename(query: str) -> str:
     return f"{name}.csv"
 
 
-def scroll_results(page) -> int:
+def scroll_results(page, config, progress_callback=None) -> int:
     """
     Scroll the Google Maps results panel to load all listings.
     Returns the total number of result items found.
     """
     results_selector = 'div[role="feed"]'
+    max_scrolls = config.get('max_scrolls', DEFAULTS['max_scrolls'])
+    scroll_pause = config.get('scroll_pause', DEFAULTS['scroll_pause'])
 
     try:
-        page.wait_for_selector(results_selector, timeout=TIMEOUT)
+        page.wait_for_selector(results_selector, timeout=config.get('timeout', DEFAULTS['timeout']))
     except PlaywrightTimeout:
-        print("  ⚠ Could not find results panel. Try a different search query.")
+        if progress_callback:
+            progress_callback('warning', 'Could not find results panel. Try a different search query.')
         return 0
 
     previous_count = 0
     no_change_count = 0
+    current_count = 0
 
-    for i in range(MAX_SCROLLS):
-        # Scroll the feed container
+    for i in range(max_scrolls):
         page.evaluate(f'''
             const feed = document.querySelector('{results_selector}');
             if (feed) feed.scrollTop = feed.scrollHeight;
         ''')
-        time.sleep(SCROLL_PAUSE)
+        time.sleep(scroll_pause)
 
-        # Count current results
         items = page.query_selector_all(f'{results_selector} > div > div > a')
         current_count = len(items)
 
-        print(f"  Scroll {i+1}/{MAX_SCROLLS} — {current_count} listings loaded", end='\r')
+        if progress_callback:
+            progress_callback('scroll', f'Scroll {i+1}/{max_scrolls} — {current_count} listings loaded')
 
-        # Check if we've reached the end
         end_marker = page.query_selector('p.fontBodyMedium span:text("You\'ve reached the end of the list")')
         if end_marker:
-            print(f"\n  ✓ Reached end of results ({current_count} listings)")
+            if progress_callback:
+                progress_callback('scroll_done', f'Reached end of results ({current_count} listings)')
             break
 
         if current_count == previous_count:
             no_change_count += 1
             if no_change_count >= 3:
-                print(f"\n  ✓ No more results loading ({current_count} listings)")
+                if progress_callback:
+                    progress_callback('scroll_done', f'No more results loading ({current_count} listings)')
                 break
         else:
             no_change_count = 0
 
         previous_count = current_count
     else:
-        print(f"\n  ✓ Max scrolls reached ({current_count} listings)")
+        if progress_callback:
+            progress_callback('scroll_done', f'Max scrolls reached ({current_count} listings)')
 
     return current_count
 
 
-def extract_emails_from_website(context, website_url: str) -> str:
+def extract_emails_from_website(context, website_url: str, config=None) -> str:
     """
     Visit a business website and scan for email addresses.
     Checks the homepage and common contact pages.
@@ -100,41 +112,37 @@ def extract_emails_from_website(context, website_url: str) -> str:
     if not website_url:
         return ''
 
-    # Build a proper URL
+    if config is None:
+        config = DEFAULTS
+
     url = website_url.strip()
     if not url.startswith('http'):
         url = 'https://' + url
 
-    # Email regex — matches standard email patterns
     email_pattern = re.compile(
         r'[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}',
         re.IGNORECASE
     )
 
-    # Emails to exclude (common false positives)
     excluded_domains = {
         'sentry.io', 'wixpress.com', 'example.com', 'email.com',
         'domain.com', 'company.com', 'yoursite.com', 'website.com',
         'test.com', 'sample.com', 'placeholder.com'
     }
     excluded_patterns = ('.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.css', '.js')
+    email_timeout = config.get('email_timeout', DEFAULTS['email_timeout'])
 
     found_emails = set()
     page = None
 
     try:
         page = context.new_page()
-
-        # Pages to check: homepage + common contact pages
-        pages_to_check = [url]
         contact_paths = ['/contact', '/contact-us', '/about', '/about-us']
 
-        # Load homepage first
         try:
-            page.goto(url, wait_until='domcontentloaded', timeout=EMAIL_TIMEOUT)
+            page.goto(url, wait_until='domcontentloaded', timeout=email_timeout)
             time.sleep(1.5)
 
-            # Get page content and scan for emails
             content = page.content()
             emails = email_pattern.findall(content)
             for email in emails:
@@ -144,7 +152,6 @@ def extract_emails_from_website(context, website_url: str) -> str:
                         not any(email_lower.endswith(p) for p in excluded_patterns)):
                     found_emails.add(email_lower)
 
-            # Also check mailto: links
             mailto_links = page.query_selector_all('a[href^="mailto:"]')
             for link in mailto_links:
                 href = link.get_attribute('href') or ''
@@ -152,12 +159,11 @@ def extract_emails_from_website(context, website_url: str) -> str:
                 if email_match:
                     found_emails.add(email_match.group().lower())
 
-            # Look for contact page links on the homepage
             if not found_emails:
                 for path in contact_paths:
                     contact_url = url.rstrip('/') + path
                     try:
-                        page.goto(contact_url, wait_until='domcontentloaded', timeout=EMAIL_TIMEOUT)
+                        page.goto(contact_url, wait_until='domcontentloaded', timeout=email_timeout)
                         time.sleep(1)
                         content = page.content()
                         emails = email_pattern.findall(content)
@@ -176,7 +182,7 @@ def extract_emails_from_website(context, website_url: str) -> str:
                                 found_emails.add(email_match.group().lower())
 
                         if found_emails:
-                            break  # Found emails, no need to check more pages
+                            break
                     except Exception:
                         continue
 
@@ -208,7 +214,6 @@ def extract_business_details(page) -> dict:
         'email': ''
     }
 
-    # ── Name ──
     try:
         name_el = page.query_selector('h1.DUwDvf')
         if name_el:
@@ -216,13 +221,11 @@ def extract_business_details(page) -> dict:
     except Exception:
         pass
 
-    # ── Address ──
     try:
         address_el = page.query_selector('button[data-item-id="address"] div.fontBodyMedium')
         if address_el:
             details['address'] = address_el.inner_text().strip()
         else:
-            # Fallback: look for the address icon aria label
             address_el = page.query_selector('button[data-item-id="address"]')
             if address_el:
                 aria = address_el.get_attribute('aria-label') or ''
@@ -230,9 +233,7 @@ def extract_business_details(page) -> dict:
     except Exception:
         pass
 
-    # ── Phone ──
     try:
-        # Phone buttons have data-item-id starting with "phone:"
         phone_el = page.query_selector('button[data-item-id^="phone:"] div.fontBodyMedium')
         if phone_el:
             details['phone'] = phone_el.inner_text().strip()
@@ -244,7 +245,6 @@ def extract_business_details(page) -> dict:
     except Exception:
         pass
 
-    # ── Website ──
     try:
         website_el = page.query_selector('a[data-item-id="authority"] div.fontBodyMedium')
         if website_el:
@@ -259,23 +259,35 @@ def extract_business_details(page) -> dict:
     return details
 
 
-def scrape_google_maps(query: str) -> list[dict]:
+def scrape_google_maps(query: str, config: dict = None, progress_callback=None) -> list[dict]:
     """
     Main scraping function.
-    Searches Google Maps for the query, scrolls results, 
+    Searches Google Maps for the query, scrolls results,
     clicks each listing, and extracts business details.
+
+    Args:
+        query: Search query string
+        config: Configuration dict (uses DEFAULTS if not provided)
+        progress_callback: Optional callback fn(event_type, message) for live updates
     """
+    if config is None:
+        config = DEFAULTS.copy()
+
     results = []
-    seen = set()  # Track (name, address) to avoid duplicates
+    seen = set()
     search_url = f"https://www.google.com/maps/search/{query.replace(' ', '+')}"
 
-    print(f"\n🔍 Searching Google Maps for: \"{query}\"")
-    print(f"   URL: {search_url}\n")
+    def emit(event, msg):
+        if progress_callback:
+            progress_callback(event, msg)
+        else:
+            print(f"  [{event}] {msg}")
+
+    emit('status', f'Searching Google Maps for: "{query}"')
 
     with sync_playwright() as p:
-        # Launch browser with stealth-ish settings
         browser = p.chromium.launch(
-            headless=False,  # Set to True for background operation
+            headless=config.get('headless', DEFAULTS['headless']),
             args=[
                 '--disable-blink-features=AutomationControlled',
                 '--no-sandbox',
@@ -290,50 +302,48 @@ def scrape_google_maps(query: str) -> list[dict]:
 
         page = context.new_page()
 
-        # Navigate to Google Maps search
-        print("  → Opening Google Maps...")
+        emit('status', 'Opening Google Maps...')
         page.goto(search_url, wait_until='networkidle', timeout=30000)
-        random_delay()
+        random_delay(config.get('action_delay_min', 1.0), config.get('action_delay_max', 2.5))
 
-        # Handle cookie consent if it appears
+        # Handle cookie consent
         try:
             accept_btn = page.query_selector('button:has-text("Accept all")')
             if accept_btn:
                 accept_btn.click()
-                random_delay()
+                random_delay(config.get('action_delay_min', 1.0), config.get('action_delay_max', 2.5))
         except Exception:
             pass
 
-        # Scroll to load all results
-        print("  → Scrolling to load all results...")
-        total_found = scroll_results(page)
+        # Scroll to load results
+        emit('status', 'Scrolling to load all results...')
+        total_found = scroll_results(page, config, progress_callback)
 
         if total_found == 0:
-            print("  ✗ No results found. Check your search query.")
+            emit('error', 'No results found. Check your search query.')
             browser.close()
             return results
 
-        # Collect all listing links
+        # Collect listing links
         feed_selector = 'div[role="feed"]'
         listing_links = page.query_selector_all(f'{feed_selector} > div > div > a')
-        print(f"\n  → Scraping details for {len(listing_links)} businesses...\n")
+        total = len(listing_links)
+        emit('status', f'Scraping details for {total} listings...')
 
         previous_name = ''
         for i, link in enumerate(listing_links):
             try:
-                # Scroll the item into view and click it
                 link.scroll_into_view_if_needed()
-                random_delay()
+                random_delay(config.get('action_delay_min', 1.0), config.get('action_delay_max', 2.5))
                 link.click()
 
-                # Wait for the detail panel to load with a NEW business
                 try:
-                    page.wait_for_selector('h1.DUwDvf', timeout=TIMEOUT)
+                    page.wait_for_selector('h1.DUwDvf', timeout=config.get('timeout', DEFAULTS['timeout']))
                 except PlaywrightTimeout:
-                    print(f"  [{i+1}/{len(listing_links)}] ⚠ Timed out — skipping")
+                    emit('skip', f'[{i+1}/{total}] Timed out — skipping')
                     continue
 
-                # Wait for panel to actually change (avoid reading stale data)
+                # Wait for panel to change
                 for _ in range(10):
                     name_el = page.query_selector('h1.DUwDvf')
                     current_name = name_el.inner_text().strip() if name_el else ''
@@ -341,60 +351,60 @@ def scrape_google_maps(query: str) -> list[dict]:
                         break
                     time.sleep(0.3)
 
-                time.sleep(0.5)  # Small extra wait for all details to render
+                time.sleep(0.5)
 
-                # Extract details
                 details = extract_business_details(page)
                 previous_name = details['name']
 
                 if details['name']:
-                    # Deduplicate by (name, address)
                     key = (details['name'].lower(), details['address'].lower())
                     if key in seen:
-                        print(f"  [{i+1}/{len(listing_links)}] ⏭ {details['name']} (duplicate, skipped)")
+                        emit('duplicate', f'[{i+1}/{total}] {details["name"]} (duplicate, skipped)')
                         continue
                     seen.add(key)
 
                     results.append(details)
-                    print(f"  [{i+1}/{len(listing_links)}] ✓ {details['name']}")
-                    if details['phone']:
-                        print(f"           📞 {details['phone']}")
-                    if details['website']:
-                        print(f"           🌐 {details['website']}")
-                    if details['address']:
-                        print(f"           📍 {details['address']}")
-                    if details['email']:
-                        print(f"           📧 {details['email']}")
-                else:
-                    print(f"  [{i+1}/{len(listing_links)}] ⚠ No name found — skipping")
+                    emit('business', json.dumps({
+                        'index': len(results),
+                        'total': total,
+                        'name': details['name'],
+                        'phone': details['phone'],
+                        'website': details['website'],
+                        'address': details['address'],
+                    }))
 
             except Exception as e:
-                print(f"  [{i+1}/{len(listing_links)}] ✗ Error: {e}")
+                emit('error', f'[{i+1}/{total}] Error: {e}')
                 continue
 
-        # ── Phase 2: Scrape emails from business websites ──
-        if SCRAPE_EMAILS:
+        # Phase 2: Email scraping
+        if config.get('scrape_emails', DEFAULTS['scrape_emails']):
             businesses_with_sites = [r for r in results if r.get('website')]
             if businesses_with_sites:
-                print(f"\n  → Scanning {len(businesses_with_sites)} websites for email addresses...\n")
+                emit('status', f'Scanning {len(businesses_with_sites)} websites for email addresses...')
                 for i, biz in enumerate(businesses_with_sites):
-                    print(f"  [{i+1}/{len(businesses_with_sites)}] Checking {biz['website']}...", end=' ')
-                    email = extract_emails_from_website(context, biz['website'])
+                    emit('email_check', json.dumps({
+                        'index': i + 1,
+                        'total': len(businesses_with_sites),
+                        'website': biz['website']
+                    }))
+                    email = extract_emails_from_website(context, biz['website'], config)
                     biz['email'] = email
                     if email:
-                        print(f"📧 {email}")
-                    else:
-                        print("no email found")
-                    random_delay()
+                        emit('email_found', json.dumps({
+                            'name': biz['name'],
+                            'email': email
+                        }))
+                    random_delay(config.get('action_delay_min', 1.0), config.get('action_delay_max', 2.5))
 
         browser.close()
 
     return results
 
 
-def save_to_csv(results: list[dict], filename: str):
-    """Save scraped results to a CSV file."""
-    filepath = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
+def save_to_csv(results: list[dict], filename: str) -> str:
+    """Save scraped results to a CSV file in the results/ folder."""
+    filepath = os.path.join(RESULTS_DIR, filename)
 
     with open(filepath, 'w', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=['name', 'address', 'phone', 'website', 'email'])
@@ -403,6 +413,8 @@ def save_to_csv(results: list[dict], filename: str):
 
     return filepath
 
+
+# ─── CLI Mode ────────────────────────────────────────────────────────────────
 
 def main():
     print("=" * 60)
@@ -415,34 +427,42 @@ def main():
         print("  ✗ No query entered. Exiting.")
         return
 
-    # Scrape
-    results = scrape_google_maps(query)
+    def cli_progress(event, msg):
+        if event == 'business':
+            data = json.loads(msg)
+            print(f"  [{data['index']}/{data['total']}] ✓ {data['name']}")
+            if data.get('phone'):
+                print(f"           📞 {data['phone']}")
+            if data.get('website'):
+                print(f"           🌐 {data['website']}")
+            if data.get('address'):
+                print(f"           📍 {data['address']}")
+        elif event == 'email_found':
+            data = json.loads(msg)
+            print(f"           📧 {data['email']}")
+        elif event == 'email_check':
+            data = json.loads(msg)
+            print(f"  [{data['index']}/{data['total']}] Checking {data['website']}...", end=' ')
+        elif event in ('status', 'scroll_done', 'warning', 'error'):
+            print(f"  {msg}")
+        elif event == 'scroll':
+            print(f"  {msg}", end='\r')
+
+    results = scrape_google_maps(query, progress_callback=cli_progress)
 
     if not results:
         print("\n  ✗ No results scraped.")
         return
 
-    # Save to CSV
     filename = sanitize_filename(query)
     filepath = save_to_csv(results, filename)
 
-    # Summary
     emails_found = sum(1 for r in results if r.get('email'))
     print("\n" + "=" * 60)
     print(f"  ✓ Done! Scraped {len(results)} businesses")
     print(f"  📧 Emails found: {emails_found}/{len(results)}")
     print(f"  📄 Saved to: {filepath}")
     print("=" * 60)
-
-    # Quick preview
-    print(f"\n  Preview (first 5 results):")
-    print(f"  {'Name':<30} {'Phone':<18} {'Website':<30}")
-    print(f"  {'─'*30} {'─'*18} {'─'*30}")
-    for r in results[:5]:
-        name = r['name'][:28] + '..' if len(r['name']) > 30 else r['name']
-        phone = r['phone'] or '—'
-        website = r['website'][:28] + '..' if len(r.get('website', '')) > 30 else (r.get('website') or '—')
-        print(f"  {name:<30} {phone:<18} {website:<30}")
 
 
 if __name__ == '__main__':

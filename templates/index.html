@@ -1,0 +1,1185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Maps Scraper</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-card: #1a1a25;
+            --bg-card-hover: #22222f;
+            --bg-input: #14141e;
+            --border: #2a2a3a;
+            --border-focus: #6366f1;
+            --text-primary: #f0f0f5;
+            --text-secondary: #8888a0;
+            --text-muted: #55556a;
+            --accent: #6366f1;
+            --accent-hover: #818cf8;
+            --accent-glow: rgba(99, 102, 241, 0.15);
+            --green: #22c55e;
+            --green-glow: rgba(34, 197, 94, 0.15);
+            --red: #ef4444;
+            --orange: #f59e0b;
+            --cyan: #06b6d4;
+            --radius: 12px;
+            --radius-sm: 8px;
+            --shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        /* ─── Header ─── */
+        .header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 20px 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(20px);
+        }
+
+        .header-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 700;
+            font-size: 18px;
+        }
+
+        .logo-icon {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--accent), #a855f7);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        .header-links {
+            display: flex;
+            gap: 8px;
+        }
+
+        .header-links button {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 8px 16px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .header-links button:hover {
+            border-color: var(--accent);
+            color: var(--text-primary);
+        }
+
+        .header-links button.active {
+            background: var(--accent-glow);
+            border-color: var(--accent);
+            color: var(--accent-hover);
+        }
+
+        /* ─── Layout ─── */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 32px 24px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 380px 1fr;
+            gap: 24px;
+            align-items: start;
+        }
+
+        /* ─── Cards ─── */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .card-header h2 {
+            font-size: 15px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card-body {
+            padding: 20px;
+        }
+
+        /* ─── Form ─── */
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group:last-child {
+            margin-bottom: 0;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 6px;
+        }
+
+        .form-hint {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        input[type="text"],
+        input[type="number"] {
+            width: 100%;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 10px 14px;
+            border-radius: var(--radius-sm);
+            font-family: inherit;
+            font-size: 14px;
+            transition: border-color 0.2s;
+            outline: none;
+        }
+
+        input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .search-input {
+            font-size: 15px;
+            padding: 12px 16px;
+        }
+
+        /* Config grid */
+        .config-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .config-grid .form-group.full-width {
+            grid-column: 1 / -1;
+        }
+
+        /* Toggle switch */
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .toggle-row:last-child {
+            border-bottom: none;
+        }
+
+        .toggle-label {
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .toggle-desc {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        .toggle {
+            position: relative;
+            width: 44px;
+            height: 24px;
+            flex-shrink: 0;
+        }
+
+        .toggle input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            inset: 0;
+            background: var(--border);
+            border-radius: 999px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .toggle-slider::before {
+            content: '';
+            position: absolute;
+            width: 18px;
+            height: 18px;
+            left: 3px;
+            bottom: 3px;
+            background: var(--text-primary);
+            border-radius: 50%;
+            transition: 0.2s;
+        }
+
+        .toggle input:checked + .toggle-slider {
+            background: var(--accent);
+        }
+
+        .toggle input:checked + .toggle-slider::before {
+            transform: translateX(20px);
+        }
+
+        /* Collapsible config */
+        .config-toggle-btn {
+            width: 100%;
+            background: transparent;
+            border: 1px dashed var(--border);
+            color: var(--text-muted);
+            padding: 8px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 12px;
+            font-weight: 500;
+            margin-top: 12px;
+            transition: all 0.2s;
+        }
+
+        .config-toggle-btn:hover {
+            border-color: var(--text-secondary);
+            color: var(--text-secondary);
+        }
+
+        .config-section {
+            display: none;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid var(--border);
+            animation: fadeIn 0.3s ease;
+        }
+
+        .config-section.show {
+            display: block;
+        }
+
+        /* ─── Start button ─── */
+        .btn-start {
+            width: 100%;
+            background: linear-gradient(135deg, var(--accent), #a855f7);
+            color: white;
+            border: none;
+            padding: 14px 24px;
+            border-radius: var(--radius-sm);
+            font-family: inherit;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-start:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 24px rgba(99, 102, 241, 0.3);
+        }
+
+        .btn-start:active {
+            transform: translateY(0);
+        }
+
+        .btn-start:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-start .spinner {
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            display: none;
+        }
+
+        .btn-start.loading .spinner {
+            display: block;
+        }
+
+        /* ─── Right panel ─── */
+        .right-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        /* ─── Progress panel ─── */
+        .progress-panel {
+            display: none;
+        }
+
+        .progress-panel.active {
+            display: block;
+        }
+
+        .progress-bar-container {
+            background: var(--bg-input);
+            border-radius: 999px;
+            height: 6px;
+            overflow: hidden;
+            margin-bottom: 16px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent), #a855f7);
+            border-radius: 999px;
+            width: 0;
+            transition: width 0.3s ease;
+        }
+
+        .progress-stats {
+            display: flex;
+            gap: 24px;
+            margin-bottom: 16px;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent), var(--cyan));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .stat-value.green {
+            background: linear-gradient(135deg, var(--green), var(--cyan));
+            -webkit-background-clip: text;
+            background-clip: text;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 600;
+        }
+
+        .progress-log {
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 12px;
+            line-height: 1.8;
+            color: var(--text-secondary);
+            background: var(--bg-input);
+            border-radius: var(--radius-sm);
+            padding: 12px 16px;
+        }
+
+        .progress-log .log-line {
+            display: flex;
+            gap: 8px;
+        }
+
+        .progress-log .log-icon {
+            flex-shrink: 0;
+        }
+
+        .progress-log .success { color: var(--green); }
+        .progress-log .warning { color: var(--orange); }
+        .progress-log .error   { color: var(--red); }
+        .progress-log .info    { color: var(--cyan); }
+
+        /* ─── Results table ─── */
+        .results-section {
+            display: none;
+        }
+
+        .results-section.active {
+            display: block;
+        }
+
+        .results-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-sm {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 6px 14px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .btn-sm:hover {
+            border-color: var(--accent);
+            color: var(--text-primary);
+        }
+
+        .btn-sm.green:hover {
+            border-color: var(--green);
+            color: var(--green);
+        }
+
+        .btn-sm.red:hover {
+            border-color: var(--red);
+            color: var(--red);
+        }
+
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .results-table th {
+            text-align: left;
+            padding: 10px 14px;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            background: var(--bg-card);
+        }
+
+        .results-table td {
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border);
+            color: var(--text-secondary);
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .results-table tr:hover td {
+            background: var(--bg-card-hover);
+            color: var(--text-primary);
+        }
+
+        .results-table td:first-child {
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .results-table a {
+            color: var(--accent-hover);
+            text-decoration: none;
+        }
+
+        .results-table a:hover {
+            text-decoration: underline;
+        }
+
+        .table-scroll {
+            max-height: 500px;
+            overflow: auto;
+        }
+
+        /* ─── History panel ─── */
+        .history-section {
+            display: none;
+        }
+
+        .history-section.active {
+            display: block;
+        }
+
+        .file-row {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            transition: background 0.15s;
+            cursor: pointer;
+        }
+
+        .file-row:last-child {
+            border-bottom: none;
+        }
+
+        .file-row:hover {
+            background: var(--bg-card-hover);
+        }
+
+        .file-icon {
+            font-size: 20px;
+            margin-right: 14px;
+        }
+
+        .file-info {
+            flex: 1;
+        }
+
+        .file-name {
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .file-meta {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        .file-actions {
+            display: flex;
+            gap: 6px;
+        }
+
+        /* ─── Empty state ─── */
+        .empty-state {
+            text-align: center;
+            padding: 60px 24px;
+            color: var(--text-muted);
+        }
+
+        .empty-state .icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .empty-state h3 {
+            color: var(--text-secondary);
+            font-size: 16px;
+            margin-bottom: 8px;
+        }
+
+        .empty-state p {
+            font-size: 13px;
+        }
+
+        /* ─── Animations ─── */
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .pulse {
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        /* ─── Responsive ─── */
+        @media (max-width: 900px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* ─── Scrollbar ─── */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 999px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header class="header">
+        <div class="header-inner">
+            <div class="logo">
+                <div class="logo-icon">📍</div>
+                <span>Maps Scraper</span>
+            </div>
+            <div class="header-links">
+                <button class="active" onclick="showView('scraper')">Scraper</button>
+                <button onclick="showView('history')">History</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container">
+        <div class="grid">
+
+            <!-- Left: Search & Config -->
+            <div class="left-panel">
+                <div class="card">
+                    <div class="card-header">
+                        <h2>🔍 New Scrape</h2>
+                    </div>
+                    <div class="card-body">
+                        <!-- Search -->
+                        <div class="form-group">
+                            <label class="form-label">Search Query</label>
+                            <input type="text" id="query" class="search-input"
+                                   placeholder="e.g. plumbers in Dallas TX"
+                                   onkeydown="if(event.key==='Enter')startScrape()">
+                            <div class="form-hint">Be specific — include business type + city + state</div>
+                        </div>
+
+                        <!-- Toggles -->
+                        <div class="toggle-row">
+                            <div>
+                                <div class="toggle-label">Scrape emails</div>
+                                <div class="toggle-desc">Visit websites to find email addresses</div>
+                            </div>
+                            <label class="toggle">
+                                <input type="checkbox" id="scrape_emails" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+
+                        <div class="toggle-row">
+                            <div>
+                                <div class="toggle-label">Headless mode</div>
+                                <div class="toggle-desc">Run browser in background (no window)</div>
+                            </div>
+                            <label class="toggle">
+                                <input type="checkbox" id="headless" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+
+                        <!-- Advanced config -->
+                        <button class="config-toggle-btn" onclick="toggleConfig()">
+                            ⚙ Advanced Settings
+                        </button>
+
+                        <div class="config-section" id="configSection">
+                            <div class="config-grid">
+                                <div class="form-group">
+                                    <label class="form-label">Max Scrolls</label>
+                                    <input type="number" id="max_scrolls" value="{{ defaults.max_scrolls }}" min="1" max="100">
+                                    <div class="form-hint">How many scroll rounds</div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Scroll Pause (s)</label>
+                                    <input type="number" id="scroll_pause" value="{{ defaults.scroll_pause }}" min="0.5" max="10" step="0.5">
+                                    <div class="form-hint">Wait between scrolls</div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Min Delay (s)</label>
+                                    <input type="number" id="action_delay_min" value="{{ defaults.action_delay_min }}" min="0.5" max="10" step="0.5">
+                                    <div class="form-hint">Minimum action delay</div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Max Delay (s)</label>
+                                    <input type="number" id="action_delay_max" value="{{ defaults.action_delay_max }}" min="0.5" max="10" step="0.5">
+                                    <div class="form-hint">Maximum action delay</div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Timeout (ms)</label>
+                                    <input type="number" id="timeout" value="{{ defaults.timeout }}" min="3000" max="30000" step="1000">
+                                    <div class="form-hint">Element wait timeout</div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Email Timeout (ms)</label>
+                                    <input type="number" id="email_timeout" value="{{ defaults.email_timeout }}" min="3000" max="30000" step="1000">
+                                    <div class="form-hint">Website load timeout</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Start button -->
+                        <button class="btn-start" id="startBtn" onclick="startScrape()">
+                            <span class="spinner"></span>
+                            <span class="btn-text">Start Scraping</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Progress / Results -->
+            <div class="right-panel">
+
+                <!-- Empty state -->
+                <div class="card" id="emptyState">
+                    <div class="empty-state">
+                        <div class="icon">🗺️</div>
+                        <h3>Ready to scrape</h3>
+                        <p>Enter a search query and hit Start to begin<br>extracting business leads from Google Maps.</p>
+                    </div>
+                </div>
+
+                <!-- Progress panel -->
+                <div class="card progress-panel" id="progressPanel">
+                    <div class="card-header">
+                        <h2>⚡ Progress</h2>
+                        <span id="progressStatus" class="pulse" style="font-size:12px;color:var(--cyan);">Initializing...</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="progress-bar-container">
+                            <div class="progress-bar" id="progressBar"></div>
+                        </div>
+                        <div class="progress-stats">
+                            <div class="stat">
+                                <div class="stat-value" id="statBusinesses">0</div>
+                                <div class="stat-label">Businesses</div>
+                            </div>
+                            <div class="stat">
+                                <div class="stat-value green" id="statEmails">0</div>
+                                <div class="stat-label">Emails Found</div>
+                            </div>
+                            <div class="stat">
+                                <div class="stat-value" id="statListings">0</div>
+                                <div class="stat-label">Listings Loaded</div>
+                            </div>
+                        </div>
+                        <div class="progress-log" id="progressLog"></div>
+                    </div>
+                </div>
+
+                <!-- Results table -->
+                <div class="card results-section" id="resultsSection">
+                    <div class="card-header">
+                        <h2>📋 Results <span id="resultCount" style="color:var(--text-muted);font-weight:400;"></span></h2>
+                        <div class="results-actions">
+                            <a class="btn-sm green" id="downloadBtn" href="#" download>⬇ Download CSV</a>
+                        </div>
+                    </div>
+                    <div class="table-scroll">
+                        <table class="results-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Phone</th>
+                                    <th>Email</th>
+                                    <th>Website</th>
+                                    <th>Address</th>
+                                </tr>
+                            </thead>
+                            <tbody id="resultsBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- History section -->
+                <div class="card history-section" id="historySection">
+                    <div class="card-header">
+                        <h2>📂 Saved Results</h2>
+                        <button class="btn-sm" onclick="loadHistory()">↻ Refresh</button>
+                    </div>
+                    <div id="historyList"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ─── State ───
+        let currentView = 'scraper';
+        let isRunning = false;
+        let businessCount = 0;
+        let emailCount = 0;
+        let listingsLoaded = 0;
+        let currentFilename = '';
+
+        // ─── View switching ───
+        function showView(view) {
+            currentView = view;
+
+            // Update nav
+            document.querySelectorAll('.header-links button').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // Toggle sections
+            document.getElementById('historySection').classList.toggle('active', view === 'history');
+
+            if (view === 'scraper') {
+                if (!isRunning && businessCount === 0) {
+                    document.getElementById('emptyState').style.display = 'block';
+                }
+            } else {
+                document.getElementById('emptyState').style.display = 'none';
+            }
+
+            if (view === 'history') loadHistory();
+        }
+
+        // ─── Config toggle ───
+        function toggleConfig() {
+            const section = document.getElementById('configSection');
+            section.classList.toggle('show');
+        }
+
+        // ─── Start scrape ───
+        async function startScrape() {
+            const query = document.getElementById('query').value.trim();
+            if (!query) {
+                document.getElementById('query').focus();
+                return;
+            }
+            if (isRunning) return;
+
+            isRunning = true;
+            businessCount = 0;
+            emailCount = 0;
+            listingsLoaded = 0;
+
+            const btn = document.getElementById('startBtn');
+            btn.disabled = true;
+            btn.classList.add('loading');
+            btn.querySelector('.btn-text').textContent = 'Scraping...';
+
+            // Show progress, hide empty state
+            document.getElementById('emptyState').style.display = 'none';
+            document.getElementById('progressPanel').classList.add('active');
+            document.getElementById('resultsSection').classList.remove('active');
+            document.getElementById('progressLog').innerHTML = '';
+            document.getElementById('progressBar').style.width = '0%';
+            updateStats();
+
+            // Build config
+            const config = {
+                query,
+                max_scrolls: parseInt(document.getElementById('max_scrolls').value),
+                scroll_pause: parseFloat(document.getElementById('scroll_pause').value),
+                action_delay_min: parseFloat(document.getElementById('action_delay_min').value),
+                action_delay_max: parseFloat(document.getElementById('action_delay_max').value),
+                timeout: parseInt(document.getElementById('timeout').value),
+                email_timeout: parseInt(document.getElementById('email_timeout').value),
+                scrape_emails: document.getElementById('scrape_emails').checked,
+                headless: document.getElementById('headless').checked,
+            };
+
+            try {
+                const res = await fetch('/start', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(config),
+                });
+                const data = await res.json();
+
+                if (data.error) {
+                    addLog('error', data.error);
+                    resetButton();
+                    return;
+                }
+
+                // Connect to SSE for live progress
+                listenProgress(data.job_id);
+            } catch (err) {
+                addLog('error', 'Failed to start scrape: ' + err.message);
+                resetButton();
+            }
+        }
+
+        // ─── SSE progress listener ───
+        function listenProgress(jobId) {
+            const source = new EventSource(`/progress/${jobId}`);
+
+            source.onmessage = (event) => {
+                const msg = JSON.parse(event.data);
+                handleProgressEvent(msg);
+
+                if (msg.event === 'done') {
+                    source.close();
+                    finishScrape();
+                }
+            };
+
+            source.onerror = () => {
+                source.close();
+                finishScrape();
+            };
+        }
+
+        function handleProgressEvent(msg) {
+            const { event, data } = msg;
+
+            switch (event) {
+                case 'status':
+                    document.getElementById('progressStatus').textContent = data;
+                    addLog('info', data);
+                    break;
+
+                case 'scroll':
+                    document.getElementById('progressStatus').textContent = data;
+                    const scrollMatch = data.match(/(\d+) listings loaded/);
+                    if (scrollMatch) {
+                        listingsLoaded = parseInt(scrollMatch[1]);
+                        updateStats();
+                    }
+                    break;
+
+                case 'scroll_done':
+                    addLog('success', data);
+                    const doneMatch = data.match(/\((\d+) listings\)/);
+                    if (doneMatch) {
+                        listingsLoaded = parseInt(doneMatch[1]);
+                        updateStats();
+                    }
+                    break;
+
+                case 'business': {
+                    const biz = JSON.parse(data);
+                    businessCount = biz.index;
+                    updateStats();
+
+                    const pct = Math.round((biz.index / biz.total) * 50); // first 50% for scraping
+                    document.getElementById('progressBar').style.width = pct + '%';
+
+                    addLog('success', `${biz.name}`);
+                    addResultRow(biz);
+                    break;
+                }
+
+                case 'email_check': {
+                    const info = JSON.parse(data);
+                    document.getElementById('progressStatus').textContent =
+                        `Checking emails ${info.index}/${info.total}...`;
+                    const pct2 = 50 + Math.round((info.index / info.total) * 50);
+                    document.getElementById('progressBar').style.width = pct2 + '%';
+                    break;
+                }
+
+                case 'email_found': {
+                    const ef = JSON.parse(data);
+                    emailCount++;
+                    updateStats();
+                    addLog('success', `📧 ${ef.name}: ${ef.email}`);
+                    updateResultEmail(ef.name, ef.email);
+                    break;
+                }
+
+                case 'complete': {
+                    const result = JSON.parse(data);
+                    currentFilename = result.filename;
+                    document.getElementById('downloadBtn').href = `/download/${result.filename}`;
+                    document.getElementById('resultCount').textContent = `— ${result.total} leads`;
+                    document.getElementById('progressBar').style.width = '100%';
+                    addLog('success', `✅ Done! ${result.total} businesses, ${result.emails} emails`);
+                    break;
+                }
+
+                case 'duplicate':
+                    addLog('warning', data);
+                    break;
+
+                case 'skip':
+                case 'warning':
+                    addLog('warning', data);
+                    break;
+
+                case 'error':
+                    addLog('error', data);
+                    break;
+            }
+        }
+
+        // ─── UI helpers ───
+        function addLog(type, text) {
+            const log = document.getElementById('progressLog');
+            const icons = { success: '✓', warning: '⚠', error: '✗', info: '→' };
+            const line = document.createElement('div');
+            line.className = 'log-line';
+            line.innerHTML = `<span class="log-icon ${type}">${icons[type] || '·'}</span> <span>${text}</span>`;
+            log.appendChild(line);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function updateStats() {
+            document.getElementById('statBusinesses').textContent = businessCount;
+            document.getElementById('statEmails').textContent = emailCount;
+            document.getElementById('statListings').textContent = listingsLoaded;
+        }
+
+        function addResultRow(biz) {
+            // Show results table
+            document.getElementById('resultsSection').classList.add('active');
+
+            const tbody = document.getElementById('resultsBody');
+            const row = document.createElement('tr');
+            row.id = `row-${biz.name.replace(/[^a-zA-Z0-9]/g, '_')}`;
+            row.innerHTML = `
+                <td>${escHtml(biz.name)}</td>
+                <td>${escHtml(biz.phone || '—')}</td>
+                <td class="email-cell">—</td>
+                <td>${biz.website ? `<a href="${biz.website.startsWith('http') ? biz.website : 'https://' + biz.website}" target="_blank">${escHtml(biz.website)}</a>` : '—'}</td>
+                <td title="${escHtml(biz.address)}">${escHtml(biz.address || '—')}</td>
+            `;
+            tbody.appendChild(row);
+        }
+
+        function updateResultEmail(name, email) {
+            const rowId = `row-${name.replace(/[^a-zA-Z0-9]/g, '_')}`;
+            const row = document.getElementById(rowId);
+            if (row) {
+                const emailCell = row.querySelector('.email-cell');
+                if (emailCell) {
+                    emailCell.textContent = email;
+                    emailCell.style.color = 'var(--green)';
+                }
+            }
+        }
+
+        function escHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        function finishScrape() {
+            isRunning = false;
+            resetButton();
+            document.getElementById('progressStatus').textContent = 'Complete';
+            document.getElementById('progressStatus').classList.remove('pulse');
+        }
+
+        function resetButton() {
+            const btn = document.getElementById('startBtn');
+            btn.disabled = false;
+            btn.classList.remove('loading');
+            btn.querySelector('.btn-text').textContent = 'Start Scraping';
+        }
+
+        // ─── History ───
+        async function loadHistory() {
+            const res = await fetch('/results');
+            const files = await res.json();
+            const list = document.getElementById('historyList');
+
+            if (files.length === 0) {
+                list.innerHTML = `
+                    <div class="empty-state" style="padding:40px">
+                        <div class="icon">📂</div>
+                        <h3>No saved results yet</h3>
+                        <p>Run a scrape to generate your first result file.</p>
+                    </div>`;
+                return;
+            }
+
+            list.innerHTML = files.map(f => `
+                <div class="file-row" onclick="viewResultFile('${f.name}')">
+                    <span class="file-icon">📄</span>
+                    <div class="file-info">
+                        <div class="file-name">${f.name}</div>
+                        <div class="file-meta">${f.rows} leads · ${f.size} · ${f.modified}</div>
+                    </div>
+                    <div class="file-actions">
+                        <a class="btn-sm green" href="/download/${f.name}" download onclick="event.stopPropagation()">⬇</a>
+                        <button class="btn-sm red" onclick="event.stopPropagation();deleteFile('${f.name}')">🗑</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function viewResultFile(filename) {
+            const res = await fetch(`/results/${filename}`);
+            const rows = await res.json();
+
+            document.getElementById('resultsSection').classList.add('active');
+            document.getElementById('downloadBtn').href = `/download/${filename}`;
+            document.getElementById('resultCount').textContent = `— ${rows.length} leads — ${filename}`;
+
+            const tbody = document.getElementById('resultsBody');
+            tbody.innerHTML = rows.map(r => `
+                <tr>
+                    <td>${escHtml(r.name || '')}</td>
+                    <td>${escHtml(r.phone || '—')}</td>
+                    <td style="color:${r.email ? 'var(--green)' : 'inherit'}">${escHtml(r.email || '—')}</td>
+                    <td>${r.website ? `<a href="${r.website.startsWith('http') ? r.website : 'https://' + r.website}" target="_blank">${escHtml(r.website)}</a>` : '—'}</td>
+                    <td title="${escHtml(r.address || '')}">${escHtml(r.address || '—')}</td>
+                </tr>
+            `).join('');
+        }
+
+        async function deleteFile(filename) {
+            if (!confirm(`Delete ${filename}?`)) return;
+            await fetch(`/delete/${filename}`, { method: 'DELETE' });
+            loadHistory();
+        }
+    </script>
+</body>
+</html>
